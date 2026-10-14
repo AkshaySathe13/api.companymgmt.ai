@@ -1,0 +1,115 @@
+import express, { type ErrorRequestHandler } from "express";
+import cors from "cors";
+import helmet from "helmet";
+import { rateLimit } from "express-rate-limit";
+import { pinoHttp } from "pino-http";
+import { randomUUID } from "node:crypto";
+import { ZodError } from "zod";
+import { Prisma } from "./generated/prisma/client.js";
+import { env } from "./config/env.js";
+import { logger } from "./lib/logger.js";
+import { prisma } from "./lib/prisma.js";
+import { AppError } from "./lib/errors.js";
+import { companyRouter } from "./modules/companies/company.routes.js";
+
+export function createApp() {
+  const app = express();
+  app.disable("x-powered-by");
+  app.use(
+    pinoHttp({
+      logger,
+      genReqId: (_req, res) => {
+        const id = randomUUID();
+        res.setHeader("X-Request-Id", id);
+        return id;
+      },
+    }),
+  );
+  app.use(helmet());
+  app.use(cors({ origin: env.CORS_ORIGINS, exposedHeaders: ["X-Request-Id"] }));
+  app.get("/health/live", (_req, res) => {
+    res.json({ status: "ok" });
+  });
+  app.get("/health/ready", async (_req, res) => {
+    try {
+      await prisma.$queryRaw`SELECT 1`;
+      res.json({ status: "ready" });
+    } catch {
+      res.status(503).json({ status: "unavailable" });
+    }
+  });
+  app.use(
+    "/api",
+    rateLimit({
+      windowMs: 60_000,
+      limit: 120,
+      standardHeaders: "draft-8",
+      legacyHeaders: false,
+      message: {
+        error: {
+          code: "RATE_LIMITED",
+          message: "Too many requests. Try again shortly.",
+        },
+      },
+    }),
+  );
+  app.use(express.json({ limit: "32kb" }));
+  app.use("/api/v1/companies", companyRouter);
+  app.use((_req, _res, next) => {
+    next(new AppError(404, "NOT_FOUND", "Route not found"));
+  });
+  const handleError: ErrorRequestHandler = (
+    error: unknown,
+    req,
+    res,
+    _next,
+  ) => {
+    let status = 500,
+      code = "INTERNAL_ERROR",
+      message = "An unexpected error occurred";
+    let details: unknown;
+    if (error instanceof ZodError) {
+      status = 400;
+      code = "VALIDATION_ERROR";
+      message = "Check the submitted fields";
+      details = error.flatten();
+    } else if (error instanceof AppError) {
+      ({ status, code, message } = error);
+    } else if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === "P2025"
+    ) {
+      status = 404;
+      code = "NOT_FOUND";
+      message = "Company not found";
+    } else if (
+      error instanceof SyntaxError &&
+      "status" in error &&
+      error.status === 400
+    ) {
+      status = 400;
+      code = "INVALID_JSON";
+      message = "Request body must be valid JSON";
+    } else if (
+      typeof error === "object" &&
+      error !== null &&
+      "type" in error &&
+      error.type === "entity.too.large"
+    ) {
+      status = 413;
+      code = "PAYLOAD_TOO_LARGE";
+      message = "Request body exceeds 32kb";
+    }
+    if (status === 500) req.log.error({ err: error }, "Request failed");
+    res.status(status).json({
+      error: {
+        code,
+        message,
+        ...(details ? { details } : {}),
+        requestId: req.id,
+      },
+    });
+  };
+  app.use(handleError);
+  return app;
+}

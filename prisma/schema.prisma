@@ -1,0 +1,27 @@
+generator client {
+  provider = "prisma-client"
+  output = "../src/generated/prisma"
+  moduleFormat = "esm"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum CompanyStatus {
+  ACTIVE
+  ARCHIVED
+}
+
+model Company {
+  id String @id @default(uuid()) @db.Uuid
+  name String @db.VarChar(160)
+  email String @db.VarChar(254)
+  website String? @db.VarChar(2048)
+  industry String @db.VarChar(100)
+  status CompanyStatus @default(ACTIVE)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status, createdAt])
+}
