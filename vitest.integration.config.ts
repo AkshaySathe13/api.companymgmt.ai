@@ -14,6 +14,8 @@ export default defineConfig({
       NODE_ENV: "test",
       LOG_LEVEL: "silent",
       DATABASE_URL: process.env.TEST_DATABASE_URL,
+      // Tests never call the real Claude API, even when a key is in .env.
+      ANTHROPIC_API_KEY: "",
     },
     fileParallelism: false,
   },

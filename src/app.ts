@@ -11,6 +11,9 @@ import { logger } from "./lib/logger.js";
 import { prisma } from "./lib/prisma.js";
 import { AppError } from "./lib/errors.js";
 import { companyRouter } from "./modules/companies/company.routes.js";
+import { teamRouter } from "./modules/teams/team.routes.js";
+import { personRouter } from "./modules/people/person.routes.js";
+import { aiRouter } from "./modules/ai/ai.routes.js";
 
 export function createApp() {
   const app = express();
@@ -55,6 +58,9 @@ export function createApp() {
   );
   app.use(express.json({ limit: "32kb" }));
   app.use("/api/v1/companies", companyRouter);
+  app.use("/api/v1/teams", teamRouter);
+  app.use("/api/v1/people", personRouter);
+  app.use("/api/v1/ai", aiRouter);
   app.use((_req, _res, next) => {
     next(new AppError(404, "NOT_FOUND", "Route not found"));
   });
@@ -81,7 +87,15 @@ export function createApp() {
     ) {
       status = 404;
       code = "NOT_FOUND";
-      message = "Company not found";
+      message = "Record not found";
+    } else if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === "P2002"
+    ) {
+      // Services check uniqueness first; this covers a concurrent duplicate.
+      status = 409;
+      code = "CONFLICT";
+      message = "A record with these details already exists";
     } else if (
       error instanceof SyntaxError &&
       "status" in error &&
