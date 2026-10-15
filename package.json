@@ -23,15 +23,16 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/AkshaySathe13/api.companymgmt.ai.git"
+    "url": "git+https://github.com/carrieros-ai/command-api.carrieros.ai.git"
   },
   "keywords": [],
   "type": "module",
   "bugs": {
-    "url": "https://github.com/AkshaySathe13/api.companymgmt.ai/issues"
+    "url": "https://github.com/carrieros-ai/command-api.carrieros.ai/issues"
   },
-  "homepage": "https://github.com/AkshaySathe13/api.companymgmt.ai#readme",
+  "homepage": "https://github.com/carrieros-ai/command-api.carrieros.ai#readme",
   "dependencies": {
+    "@anthropic-ai/sdk": "0.131.0",
     "@prisma/adapter-pg": "^7.10.0",
     "@prisma/client": "^7.10.0",
     "cors": "^2.8.6",

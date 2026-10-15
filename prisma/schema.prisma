@@ -25,3 +25,64 @@ model Company {
 
   @@index([status, createdAt])
 }
+
+enum PersonKind {
+  STAFF
+  EXTERNAL
+}
+
+enum WorkMode {
+  OFFICE
+  REMOTE
+  EXTERNAL
+}
+
+enum TeamKind {
+  LEADERSHIP
+  TECHNICAL
+  BUSINESS
+  EXTERNAL
+}
+
+/// A person in the company directory: staff or an external contact such as an investor.
+model Person {
+  id          String           @id @default(uuid()) @db.Uuid
+  name        String           @db.VarChar(120)
+  email       String           @unique @db.VarChar(254)
+  role        String           @db.VarChar(120)
+  location    String           @db.VarChar(120)
+  timezone    String           @db.VarChar(60)
+  workMode    WorkMode         @default(OFFICE)
+  kind        PersonKind       @default(STAFF)
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  memberships TeamMembership[]
+  ledTeams    Team[]           @relation("TeamLead")
+
+  @@index([name])
+}
+
+/// A company team. Membership is many-to-many: one person can belong to several teams.
+model Team {
+  id          String           @id @default(uuid()) @db.Uuid
+  name        String           @unique @db.VarChar(80)
+  purpose     String           @db.VarChar(240)
+  kind        TeamKind         @default(TECHNICAL)
+  icon        String           @default("users") @db.VarChar(20)
+  leadId      String?          @db.Uuid
+  lead        Person?          @relation("TeamLead", fields: [leadId], references: [id], onDelete: Restrict)
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  memberships TeamMembership[]
+}
+
+model TeamMembership {
+  teamId    String   @db.Uuid
+  personId  String   @db.Uuid
+  team      Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  person    Person   @relation(fields: [personId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@id([teamId, personId])
+  @@index([personId])
+}
