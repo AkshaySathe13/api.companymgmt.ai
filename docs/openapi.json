@@ -543,8 +543,15 @@
               }
             }
           },
-          "429": {
-            "description": "Rate limit exceeded"
+          "403": {
+            "description": "FORBIDDEN when the role is not manager or executive.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "409": {
             "description": "Team name already used",
@@ -555,8 +562,16 @@
                 }
               }
             }
+          },
+          "429": {
+            "description": "Rate limit exceeded"
           }
-        }
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/PreviewRole"
+          }
+        ]
       }
     },
     "/api/v1/teams/{id}": {
@@ -600,9 +615,6 @@
               }
             }
           },
-          "429": {
-            "description": "Rate limit exceeded"
-          },
           "404": {
             "description": "Not found",
             "content": {
@@ -612,6 +624,9 @@
                 }
               }
             }
+          },
+          "429": {
+            "description": "Rate limit exceeded"
           }
         }
       },
@@ -654,8 +669,15 @@
               }
             }
           },
-          "429": {
-            "description": "Rate limit exceeded"
+          "403": {
+            "description": "FORBIDDEN for developers; CORE_TEAM_LOCKED when a manager edits a core team.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "404": {
             "description": "Not found",
@@ -676,12 +698,21 @@
                 }
               }
             }
+          },
+          "429": {
+            "description": "Rate limit exceeded"
           }
-        }
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/PreviewRole"
+          }
+        ],
+        "description": "Executives can edit any team; managers only teams that are not core."
       },
       "delete": {
         "summary": "Delete team",
-        "description": "Refused with TEAM_HAS_ONLY_MEMBERS when some members have no other team.",
+        "description": "Refused with TEAM_HAS_ONLY_MEMBERS when some members have no other team. Executives can delete any team; managers only teams that are not core.",
         "responses": {
           "204": {
             "description": "Deleted"
@@ -696,8 +727,15 @@
               }
             }
           },
-          "429": {
-            "description": "Rate limit exceeded"
+          "403": {
+            "description": "FORBIDDEN for developers; CORE_TEAM_LOCKED when a manager deletes a core team.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "404": {
             "description": "Not found",
@@ -718,8 +756,16 @@
                 }
               }
             }
+          },
+          "429": {
+            "description": "Rate limit exceeded"
           }
-        }
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/PreviewRole"
+          }
+        ]
       }
     },
     "/api/v1/teams/{id}/members": {
@@ -781,8 +827,15 @@
               }
             }
           },
-          "429": {
-            "description": "Rate limit exceeded"
+          "403": {
+            "description": "FORBIDDEN when the role is not manager or executive.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "404": {
             "description": "Team not found",
@@ -793,8 +846,16 @@
                 }
               }
             }
+          },
+          "429": {
+            "description": "Rate limit exceeded"
           }
-        }
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/PreviewRole"
+          }
+        ]
       }
     },
     "/api/v1/teams/{id}/members/{personId}": {
@@ -848,8 +909,15 @@
               }
             }
           },
-          "429": {
-            "description": "Rate limit exceeded"
+          "403": {
+            "description": "FORBIDDEN when the role is not manager or executive.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "404": {
             "description": "Not found",
@@ -870,8 +938,16 @@
                 }
               }
             }
+          },
+          "429": {
+            "description": "Rate limit exceeded"
           }
-        }
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/PreviewRole"
+          }
+        ]
       }
     },
     "/api/v1/people": {
@@ -987,9 +1063,6 @@
               }
             }
           },
-          "429": {
-            "description": "Rate limit exceeded"
-          },
           "409": {
             "description": "Email already used",
             "content": {
@@ -999,6 +1072,9 @@
                 }
               }
             }
+          },
+          "429": {
+            "description": "Rate limit exceeded"
           }
         }
       }
@@ -1044,9 +1120,6 @@
               }
             }
           },
-          "429": {
-            "description": "Rate limit exceeded"
-          },
           "404": {
             "description": "Not found",
             "content": {
@@ -1056,6 +1129,9 @@
                 }
               }
             }
+          },
+          "429": {
+            "description": "Rate limit exceeded"
           }
         }
       },
@@ -1098,9 +1174,6 @@
               }
             }
           },
-          "429": {
-            "description": "Rate limit exceeded"
-          },
           "404": {
             "description": "Not found",
             "content": {
@@ -1120,6 +1193,9 @@
                 }
               }
             }
+          },
+          "429": {
+            "description": "Rate limit exceeded"
           }
         }
       },
@@ -1140,9 +1216,6 @@
               }
             }
           },
-          "429": {
-            "description": "Rate limit exceeded"
-          },
           "404": {
             "description": "Not found",
             "content": {
@@ -1162,6 +1235,9 @@
                 }
               }
             }
+          },
+          "429": {
+            "description": "Rate limit exceeded"
           }
         }
       }
@@ -1590,6 +1666,7 @@
           "kind",
           "icon",
           "leadId",
+          "isCore",
           "lead",
           "memberCount",
           "members",
@@ -1638,6 +1715,10 @@
               }
             ],
             "nullable": true
+          },
+          "isCore": {
+            "type": "boolean",
+            "description": "Core company team (seeded). Only an executive can edit or delete it."
           },
           "memberCount": {
             "type": "integer"
@@ -1808,6 +1889,18 @@
           "model": {
             "type": "string"
           }
+        }
+      }
+    },
+    "parameters": {
+      "PreviewRole": {
+        "name": "X-Preview-Role",
+        "in": "header",
+        "required": false,
+        "description": "Demo-only preview role from the frontend role switcher; not authentication. Missing or unknown values are treated as developer (read-only).",
+        "schema": {
+          "type": "string",
+          "enum": ["executive", "manager", "developer"]
         }
       }
     }

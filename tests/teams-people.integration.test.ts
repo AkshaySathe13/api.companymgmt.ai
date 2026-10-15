@@ -10,6 +10,8 @@ import {
 } from "../src/modules/ai/ai.tools.js";
 
 const app = createApp();
+const manager = { "X-Preview-Role": "manager" };
+const executive = { "X-Preview-Role": "executive" };
 const suffix = randomUUID().slice(0, 8);
 const teamIds: string[] = [];
 const personIds: string[] = [];
@@ -52,6 +54,7 @@ describe("teams and people against PostgreSQL", () => {
 
     const alpha = await request(app)
       .post("/api/v1/teams")
+      .set(manager)
       .send({
         name: `Alpha ${suffix}`,
         purpose: "First team",
@@ -65,6 +68,7 @@ describe("teams and people against PostgreSQL", () => {
 
     const beta = await request(app)
       .post("/api/v1/teams")
+      .set(manager)
       .send({
         name: `Beta ${suffix}`,
         purpose: "Second team",
@@ -77,6 +81,7 @@ describe("teams and people against PostgreSQL", () => {
       (
         await request(app)
           .post("/api/v1/teams")
+          .set(manager)
           .send({
             name: `alpha ${suffix}`.toUpperCase(),
             purpose: "Clash",
@@ -98,31 +103,35 @@ describe("teams and people against PostgreSQL", () => {
       [bootstrap.id, nina.id].sort(),
     );
 
-    const removed = await request(app).delete(
-      `/api/v1/teams/${beta.body.data.id}/members/${nina.id}`,
-    );
+    const removed = await request(app)
+      .delete(`/api/v1/teams/${beta.body.data.id}/members/${nina.id}`)
+      .set(manager);
     expect(removed.status).toBe(200);
     expect(
       (
-        await request(app).delete(
-          `/api/v1/teams/${alpha.body.data.id}/members/${nina.id}`,
-        )
+        await request(app)
+          .delete(`/api/v1/teams/${alpha.body.data.id}/members/${nina.id}`)
+          .set(manager)
       ).body.error.code,
     ).toBe("LAST_TEAM");
     expect(
       (
-        await request(app).delete(
-          `/api/v1/teams/${alpha.body.data.id}/members/${bootstrap.id}`,
-        )
+        await request(app)
+          .delete(`/api/v1/teams/${alpha.body.data.id}/members/${bootstrap.id}`)
+          .set(manager)
       ).body.error.code,
     ).toBe("LEAD_CANNOT_LEAVE");
     expect(
-      (await request(app).delete(`/api/v1/teams/${alpha.body.data.id}`)).body
-        .error.code,
+      (
+        await request(app)
+          .delete(`/api/v1/teams/${alpha.body.data.id}`)
+          .set(manager)
+      ).body.error.code,
     ).toBe("TEAM_HAS_ONLY_MEMBERS");
 
     const newLead = await request(app)
       .patch(`/api/v1/teams/${beta.body.data.id}`)
+      .set(manager)
       .send({ leadId: nina.id });
     expect(newLead.body.data.lead.id).toBe(nina.id);
     expect(
@@ -131,6 +140,78 @@ describe("teams and people against PostgreSQL", () => {
     expect(
       (await request(app).delete(`/api/v1/people/${nina.id}`)).body.error.code,
     ).toBe("PERSON_LEADS_TEAM");
+  });
+
+  it("lets only an executive change a core team; developers change nothing", async () => {
+    const lead = await prisma.person.create({
+      data: {
+        name: `Core lead ${suffix}`,
+        email: `core.lead.${suffix}@example.com`,
+        role: "Lead",
+        location: "Austin, US",
+        timezone: "America/Chicago",
+      },
+    });
+    personIds.push(lead.id);
+    const core = await prisma.team.create({
+      data: {
+        name: `Core ${suffix}`,
+        purpose: "Core company team",
+        leadId: lead.id,
+        isCore: true,
+        memberships: { create: { personId: lead.id } },
+      },
+    });
+    teamIds.push(core.id);
+    // A second team keeps the lead in a team once the core team is deleted.
+    const other = await prisma.team.create({
+      data: {
+        name: `Other ${suffix}`,
+        purpose: "Keeps the lead in a team",
+        leadId: lead.id,
+        memberships: { create: { personId: lead.id } },
+      },
+    });
+    teamIds.push(other.id);
+    const path = `/api/v1/teams/${core.id}`;
+
+    const listed = await request(app).get(path);
+    expect(listed.body.data.isCore).toBe(true);
+
+    const managerEdit = await request(app)
+      .patch(path)
+      .set(manager)
+      .send({ purpose: "Changed by a manager" });
+    expect(managerEdit.status).toBe(403);
+    expect(managerEdit.body.error.code).toBe("CORE_TEAM_LOCKED");
+    expect((await request(app).delete(path).set(manager)).body.error.code).toBe(
+      "CORE_TEAM_LOCKED",
+    );
+
+    const anonymous = await request(app)
+      .patch(path)
+      .send({ purpose: "No role header" });
+    expect(anonymous.body.error.code).toBe("FORBIDDEN");
+    expect(
+      (
+        await request(app)
+          .post("/api/v1/teams")
+          .set({ "X-Preview-Role": "developer" })
+          .send({ name: `Dev ${suffix}`, purpose: "Nope", leadId: lead.id })
+      ).body.error.code,
+    ).toBe("FORBIDDEN");
+
+    const executiveEdit = await request(app)
+      .patch(path)
+      .set(executive)
+      .send({ purpose: "Changed by an executive", isCore: false });
+    expect(executiveEdit.status).toBe(400); // isCore can't be changed through the API
+    const edited = await request(app)
+      .patch(path)
+      .set(executive)
+      .send({ purpose: "Changed by an executive" });
+    expect(edited.body.data.purpose).toBe("Changed by an executive");
+    expect((await request(app).delete(path).set(executive)).status).toBe(204);
   });
 
   it("gives the AI tools live, ID-checked records", async () => {

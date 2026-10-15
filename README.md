@@ -52,6 +52,8 @@ The complete OpenAPI 3.1 contract is `docs/openapi.json`.
 
 Creation requires `name`, `email`, and `industry`; `website` is optional and must use HTTP(S). Send an empty website to clear it. PATCH omits fields to preserve them. Use `status: "ARCHIVED"` to archive and `"ACTIVE"` to restore. No hard delete is exposed. Names and email addresses are not assumed unique.
 
+Team writes (create, edit, delete, membership) take the frontend's demo role from the `X-Preview-Role` header: `executive` can change any team, `manager` can change every team except the five seeded core teams (`isCore: true`, refused with 403 `CORE_TEAM_LOCKED`), and `developer` or a missing header is read-only (403 `FORBIDDEN`). Anyone can set this header; it is a demo stand-in, not access control.
+
 List responses: `{ data: Company[], meta: { total, page, limit, pages } }`. Single-record responses: `{ data: Company }`. Errors: `{ error: { code, message, requestId, details? } }`. IDs are UUIDs; dates are ISO timestamps. Maximum page size is 100. Missing status returns both active and archived records; the frontend explicitly filters status. Matching is case-insensitive on company name or industry. Pagination orders by creation time and ID; offset pagination suits this starter's scale.
 
 ## Validation and migrations

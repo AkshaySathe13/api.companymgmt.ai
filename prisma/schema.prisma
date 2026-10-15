@@ -1,6 +1,6 @@
 generator client {
-  provider = "prisma-client"
-  output = "../src/generated/prisma"
+  provider     = "prisma-client"
+  output       = "../src/generated/prisma"
   moduleFormat = "esm"
 }
 
@@ -14,14 +14,14 @@ enum CompanyStatus {
 }
 
 model Company {
-  id String @id @default(uuid()) @db.Uuid
-  name String @db.VarChar(160)
-  email String @db.VarChar(254)
-  website String? @db.VarChar(2048)
-  industry String @db.VarChar(100)
-  status CompanyStatus @default(ACTIVE)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id        String        @id @default(uuid()) @db.Uuid
+  name      String        @db.VarChar(160)
+  email     String        @db.VarChar(254)
+  website   String?       @db.VarChar(2048)
+  industry  String        @db.VarChar(100)
+  status    CompanyStatus @default(ACTIVE)
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
 
   @@index([status, createdAt])
 }
@@ -71,6 +71,8 @@ model Team {
   icon        String           @default("users") @db.VarChar(20)
   leadId      String?          @db.Uuid
   lead        Person?          @relation("TeamLead", fields: [leadId], references: [id], onDelete: Restrict)
+  /// Core company teams (the seeded ones) can only be edited or deleted by an executive.
+  isCore      Boolean          @default(false)
   createdAt   DateTime         @default(now())
   updatedAt   DateTime         @updatedAt
   memberships TeamMembership[]

@@ -227,9 +227,10 @@ try {
   for (const team of teams) {
     await prisma.team.upsert({
       where: { id: teamId(team.n) },
-      update: {},
+      update: { isCore: true },
       create: {
         id: teamId(team.n),
+        isCore: true,
         name: team.name,
         purpose: team.purpose,
         kind: team.kind,

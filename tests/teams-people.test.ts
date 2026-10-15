@@ -35,6 +35,18 @@ describe("teams and people request boundaries (no database)", () => {
     ).toBe(400);
   });
 
+  it("refuses team changes without a manager or executive role", async () => {
+    const body = { name: "Platform", purpose: "Runs it", leadId: validId };
+    for (const role of [undefined, "developer", "intern"]) {
+      const req = request(app).post("/api/v1/teams");
+      const res = await (role ? req.set("X-Preview-Role", role) : req).send(
+        body,
+      );
+      expect(res.status).toBe(403);
+      expect(res.body.error.code).toBe("FORBIDDEN");
+    }
+  });
+
   it("requires every new person to join at least one team", async () => {
     const res = await request(app).post("/api/v1/people").send({
       name: "New Person",

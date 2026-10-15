@@ -1,6 +1,7 @@
 import type { z } from "zod";
 import { prisma } from "../../lib/prisma.js";
 import { AppError } from "../../lib/errors.js";
+import { assertCanManage, type PreviewRole } from "../../lib/preview-role.js";
 import type { Prisma } from "../../generated/prisma/client.js";
 import { teamInput, teamQuery, teamUpdate } from "./team.schema.js";
 
@@ -44,6 +45,20 @@ async function assertPerson(id: string) {
   return person;
 }
 
+// Managers can change the teams they create; core company teams need an executive.
+function assertCanChange(
+  team: { name: string; isCore: boolean },
+  role: PreviewRole,
+) {
+  assertCanManage(role);
+  if (team.isCore && role !== "executive")
+    throw new AppError(
+      403,
+      "CORE_TEAM_LOCKED",
+      `${team.name} is a core company team. Only an executive can edit or delete it.`,
+    );
+}
+
 export const teamService = {
   async list(query: z.infer<typeof teamQuery>) {
     const rows = await prisma.team.findMany({
@@ -65,7 +80,8 @@ export const teamService = {
     return toTeam(row);
   },
 
-  async create(input: z.infer<typeof teamInput>) {
+  async create(input: z.infer<typeof teamInput>, role: PreviewRole) {
+    assertCanManage(role);
     await assertNameFree(input.name);
     await assertPerson(input.leadId);
     // The lead is always a member of the team they lead.
@@ -76,8 +92,12 @@ export const teamService = {
     return toTeam(row);
   },
 
-  async update(id: string, input: z.infer<typeof teamUpdate>) {
-    await this.get(id);
+  async update(
+    id: string,
+    input: z.infer<typeof teamUpdate>,
+    role: PreviewRole,
+  ) {
+    assertCanChange(await this.get(id), role);
     if (input.name) await assertNameFree(input.name, id);
     if (input.leadId) await assertPerson(input.leadId);
     const row = await prisma.$transaction(async (tx) => {
@@ -96,8 +116,9 @@ export const teamService = {
     return toTeam(row);
   },
 
-  async remove(id: string) {
+  async remove(id: string, role: PreviewRole) {
     const team = await this.get(id);
+    assertCanChange(team, role);
     // People must keep at least one team, so a team can't take its last members with it.
     const stranded = await prisma.person.count({
       where: {
@@ -113,7 +134,8 @@ export const teamService = {
     await prisma.team.delete({ where: { id } });
   },
 
-  async addMember(id: string, personId: string) {
+  async addMember(id: string, personId: string, role: PreviewRole) {
+    assertCanManage(role);
     await this.get(id);
     await assertPerson(personId);
     await prisma.teamMembership.upsert({
@@ -124,7 +146,8 @@ export const teamService = {
     return this.get(id);
   },
 
-  async removeMember(id: string, personId: string) {
+  async removeMember(id: string, personId: string, role: PreviewRole) {
+    assertCanManage(role);
     const team = await this.get(id);
     if (!team.members.some((member) => member.id === personId))
       throw new AppError(404, "NOT_FOUND", "This person isn't in the team");
