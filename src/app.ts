@@ -5,15 +5,17 @@ import { rateLimit } from "express-rate-limit";
 import { pinoHttp } from "pino-http";
 import { randomUUID } from "node:crypto";
 import { ZodError } from "zod";
-import { Prisma } from "./generated/prisma/client.js";
 import { env } from "./config/env.js";
 import { logger } from "./lib/logger.js";
-import { prisma } from "./lib/prisma.js";
+import { isWriteConflict, prisma } from "./lib/prisma.js";
+import { describePrismaError } from "./lib/db-errors.js";
 import { AppError } from "./lib/errors.js";
 import { companyRouter } from "./modules/companies/company.routes.js";
 import { teamRouter } from "./modules/teams/team.routes.js";
 import { personRouter } from "./modules/people/person.routes.js";
 import { aiRouter } from "./modules/ai/ai.routes.js";
+import { authRouter } from "./modules/auth/auth.routes.js";
+import { authenticate } from "./modules/auth/session.js";
 
 export function createApp() {
   const app = express();
@@ -29,7 +31,14 @@ export function createApp() {
     }),
   );
   app.use(helmet());
-  app.use(cors({ origin: env.CORS_ORIGINS, exposedHeaders: ["X-Request-Id"] }));
+  // The frontend proxies /api, so browsers normally call same-origin; CORS covers direct calls.
+  app.use(
+    cors({
+      origin: env.CORS_ORIGINS,
+      credentials: true,
+      exposedHeaders: ["X-Request-Id"],
+    }),
+  );
   app.get("/health/live", (_req, res) => {
     res.json({ status: "ok" });
   });
@@ -57,6 +66,9 @@ export function createApp() {
     }),
   );
   app.use(express.json({ limit: "32kb" }));
+  // Sign-in routes are public; everything else needs a signed-in, active user.
+  app.use("/api/v1/auth", authRouter);
+  app.use("/api/v1", authenticate);
   app.use("/api/v1/companies", companyRouter);
   app.use("/api/v1/teams", teamRouter);
   app.use("/api/v1/people", personRouter);
@@ -81,21 +93,13 @@ export function createApp() {
       details = error.flatten();
     } else if (error instanceof AppError) {
       ({ status, code, message } = error);
-    } else if (
-      error instanceof Prisma.PrismaClientKnownRequestError &&
-      error.code === "P2025"
-    ) {
-      status = 404;
-      code = "NOT_FOUND";
-      message = "Record not found";
-    } else if (
-      error instanceof Prisma.PrismaClientKnownRequestError &&
-      error.code === "P2002"
-    ) {
-      // Services check uniqueness first; this covers a concurrent duplicate.
+    } else if (describePrismaError(error)) {
+      // Services check these rules first; this covers a change that slipped in concurrently.
+      ({ status, code, message } = describePrismaError(error)!);
+    } else if (isWriteConflict(error)) {
       status = 409;
-      code = "CONFLICT";
-      message = "A record with these details already exists";
+      code = "RETRY";
+      message = "Someone else changed this at the same time. Please try again.";
     } else if (
       error instanceof SyntaxError &&
       "status" in error &&

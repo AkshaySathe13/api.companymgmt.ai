@@ -3,6 +3,7 @@ import { betaTool } from "@anthropic-ai/sdk/helpers/beta/json-schema";
 import { AppError } from "../../lib/errors.js";
 import { teamService } from "../teams/team.service.js";
 import { personService } from "../people/person.service.js";
+import type { Viewer } from "../../lib/access.js";
 import { viewInput, viewKinds, type AiView } from "./ai.schema.js";
 
 export const MAX_VIEWS = 3;
@@ -38,8 +39,10 @@ async function safely<T>(
   }
 }
 
-export async function listTeams() {
-  const { data } = await teamService.list({ search: "" });
+// Every tool reads through the same services as the API, as the person asking, so Claude only
+// sees what that person may see; hidden profile fields arrive as null.
+export async function listTeams(viewer: Viewer) {
+  const { data } = await teamService.list(viewer, { search: "" });
   return data.map((team) => ({
     id: team.id,
     name: team.name,
@@ -49,14 +52,18 @@ export async function listTeams() {
     members: team.members.map((member) => ({
       id: member.id,
       name: member.name,
-      role: member.role,
+      jobTitle: member.jobTitle,
+      teamRole: member.roleLabel,
       workMode: member.workMode,
     })),
   }));
 }
 
-export async function searchPeople(input: { query?: string; teamId?: string }) {
-  const { data } = await personService.list({
+export async function searchPeople(
+  viewer: Viewer,
+  input: { query?: string; teamId?: string },
+) {
+  const { data } = await personService.list(viewer, {
     search: input.query ?? "",
     teamId: input.teamId,
     ids: undefined,
@@ -65,26 +72,27 @@ export async function searchPeople(input: { query?: string; teamId?: string }) {
   return data.map((person) => ({
     id: person.id,
     name: person.name,
-    role: person.role,
+    jobTitle: person.jobTitle,
+    restricted: person.restricted,
     email: person.email,
     location: person.location,
     timezone: person.timezone,
     workMode: person.workMode,
     kind: person.kind,
-    teams: person.teams.map((team) => team.name),
+    teams: person.teams.map((team) => `${team.name} (${team.roleLabel})`),
     leadsTeamIds: person.leadsTeamIds,
   }));
 }
 
 /** Checks a requested view against the records it references. Returns an error message or null. */
-export async function checkView(view: AiView) {
+export async function checkView(viewer: Viewer, view: AiView) {
   if (view.kind === "team") {
     if (!view.teamId) return 'A "team" view needs a teamId.';
-    await teamService.get(view.teamId);
+    await teamService.get(viewer, view.teamId);
   }
   if (view.kind === "people") {
     if (!view.personIds?.length) return 'A "people" view needs personIds.';
-    const { data } = await personService.list({
+    const { data } = await personService.list(viewer, {
       search: "",
       ids: view.personIds,
       teamId: undefined,
@@ -96,12 +104,12 @@ export async function checkView(view: AiView) {
   return null;
 }
 
-export function createTools(views: AiView[]) {
+export function createTools(viewer: Viewer, views: AiView[]) {
   return [
     betaTool({
       name: "list_teams",
       description:
-        "List every company team with its ID, purpose, kind, lead and members (ID, name, role, work mode). One person can belong to several teams. Use this for any question about teams, leads or who is in which team.",
+        "List the company teams this user may see, with ID, purpose, kind, lead and members (ID, name, job title, team role, work mode). One person can belong to several teams. Use this for any question about teams, leads or who is in which team.",
       inputSchema: {
         type: "object",
         properties: {},
@@ -109,13 +117,13 @@ export function createTools(views: AiView[]) {
       },
       run: (input) =>
         safely(z.object({}).strict(), input, async () =>
-          json(await listTeams()),
+          json(await listTeams(viewer)),
         ),
     }),
     betaTool({
       name: "search_people",
       description:
-        "Search the people directory by name, role, email or location, optionally limited to one team. Returns up to 50 people with ID, role, location, time zone, work mode (OFFICE, REMOTE or EXTERNAL), kind (STAFF or EXTERNAL) and team names. Leave query empty to list everyone.",
+        "Search the people this user may see by name, job title, email or location, optionally limited to one team. Returns up to 50 people with ID, job title, location, time zone, work mode (OFFICE, REMOTE or EXTERNAL), kind (STAFF or EXTERNAL) and teams with their team role. When restricted is true, contact details and location are hidden from this user and are null. Leave query empty to list everyone visible.",
       inputSchema: {
         type: "object",
         properties: {
@@ -126,7 +134,7 @@ export function createTools(views: AiView[]) {
       },
       run: (input) =>
         safely(searchInput, input, async (value) =>
-          json(await searchPeople(value)),
+          json(await searchPeople(viewer, value)),
         ),
     }),
     betaTool({
@@ -152,7 +160,7 @@ export function createTools(views: AiView[]) {
         safely(viewInput, input, async (view) => {
           if (views.length >= MAX_VIEWS)
             return `Limit reached: only ${MAX_VIEWS} views can be shown.`;
-          const problem = await checkView(view);
+          const problem = await checkView(viewer, view);
           if (problem) return json({ error: problem });
           views.push(view);
           return "Shown to the user.";

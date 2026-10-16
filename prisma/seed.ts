@@ -1,4 +1,6 @@
 import { prisma } from "../src/lib/prisma.js";
+import { hashPassword } from "../src/lib/password.js";
+import { teamRoles } from "../src/lib/access.js";
 
 const companies = [
   {
@@ -17,138 +19,128 @@ const companies = [
   },
 ];
 
-// Fixed IDs keep the frontend's demo preview roles stable across reseeds.
+// Fixed IDs keep links stable across reseeds.
 const personId = (n: number) =>
   `aaaaaaaa-0000-4000-8000-${String(n).padStart(12, "0")}`;
 const teamId = (n: number) =>
   `bbbbbbbb-0000-4000-8000-${String(n).padStart(12, "0")}`;
 
+/** Shared password for the seeded demo users, so every role can be tried. Fictional data only. */
+export const DEMO_PASSWORD = process.env.SEED_PASSWORD ?? "Pass@123";
+
 type WorkMode = "OFFICE" | "REMOTE" | "EXTERNAL";
-const people: [number, string, string, string, string, WorkMode][] = [
-  [
-    1,
-    "Evan Ross",
-    "Chief executive officer",
-    "New York, US",
-    "America/New_York",
-    "REMOTE",
-  ],
-  [
-    2,
-    "Kavya Rao",
-    "Chief financial officer",
-    "Pune, India",
-    "Asia/Kolkata",
-    "OFFICE",
-  ],
-  [
-    3,
-    "Arjun Mehta",
-    "Chief technology officer",
-    "Bengaluru, India",
-    "Asia/Kolkata",
-    "REMOTE",
-  ],
-  [
-    4,
-    "Mira Sen",
-    "Engineering manager",
-    "Pune, India",
-    "Asia/Kolkata",
-    "OFFICE",
-  ],
-  [
-    5,
-    "Nina Patel",
-    "Frontend developer",
-    "Pune, India",
-    "Asia/Kolkata",
-    "OFFICE",
-  ],
-  [
-    6,
-    "Karan Desai",
-    "Backend developer",
-    "Pune, India",
-    "Asia/Kolkata",
-    "OFFICE",
-  ],
-  [
-    7,
-    "Aditi Kulkarni",
-    "Full-stack developer",
-    "Goa, India",
-    "Asia/Kolkata",
-    "REMOTE",
-  ],
-  [8, "Rohan Iyer", "QA engineer", "Pune, India", "Asia/Kolkata", "OFFICE"],
-  [
-    9,
-    "Noah Reed",
-    "Lead AI engineer",
-    "Austin, US",
-    "America/Chicago",
-    "OFFICE",
-  ],
-  [10, "Priya Raman", "AI engineer", "Austin, US", "America/Chicago", "OFFICE"],
-  [
-    11,
-    "Daniel Kim",
-    "ML operations engineer",
-    "Seattle, US",
-    "America/Los_Angeles",
-    "REMOTE",
-  ],
-  [
-    12,
-    "Omar Lane",
-    "Agent integration engineer",
-    "Austin, US",
-    "America/Chicago",
-    "OFFICE",
-  ],
-  [
-    13,
-    "Riya Mehta",
-    "Head of sales",
-    "Mumbai, India",
-    "Asia/Kolkata",
-    "OFFICE",
-  ],
-  [
-    14,
-    "Isha Roy",
-    "Sales associate",
-    "Mumbai, India",
-    "Asia/Kolkata",
-    "OFFICE",
-  ],
-  [
-    15,
-    "Jake Turner",
-    "Account executive",
-    "Chicago, US",
-    "America/Chicago",
-    "REMOTE",
-  ],
-  [
-    16,
-    "David Hart",
-    "Partner, Northbridge Ventures",
-    "London, UK",
-    "Europe/London",
-    "EXTERNAL",
-  ],
-  [
-    17,
-    "Elena Park",
-    "Angel investor",
-    "Singapore",
-    "Asia/Singapore",
-    "EXTERNAL",
-  ],
+// One user per row of the company's team, role and job title table.
+const people: {
+  n: number;
+  email: string;
+  name: string;
+  jobTitle: string;
+  location: string;
+  timezone: string;
+  workMode: WorkMode;
+}[] = [
+  {
+    n: 1,
+    email: "ceo@gmail.com",
+    name: "Aarav Shah",
+    jobTitle: "CEO",
+    location: "Mumbai, India",
+    timezone: "Asia/Kolkata",
+    workMode: "OFFICE",
+  },
+  {
+    n: 2,
+    email: "cfo@gmail.com",
+    name: "Meera Iyer",
+    jobTitle: "CFO",
+    location: "Mumbai, India",
+    timezone: "Asia/Kolkata",
+    workMode: "OFFICE",
+  },
+  {
+    n: 3,
+    email: "cto@gmail.com",
+    name: "Daniel Brooks",
+    jobTitle: "CTO",
+    location: "San Francisco, US",
+    timezone: "America/Los_Angeles",
+    workMode: "REMOTE",
+  },
+  {
+    n: 4,
+    email: "indiamanager@gmail.com",
+    name: "Rahul Verma",
+    jobTitle: "Engineering Manager",
+    location: "Pune, India",
+    timezone: "Asia/Kolkata",
+    workMode: "OFFICE",
+  },
+  {
+    n: 5,
+    email: "indiadeveloper@gmail.com",
+    name: "Sneha Kulkarni",
+    jobTitle: "Software Engineer",
+    location: "Pune, India",
+    timezone: "Asia/Kolkata",
+    workMode: "OFFICE",
+  },
+  {
+    n: 6,
+    email: "usaimanager@gmail.com",
+    name: "Olivia Chen",
+    jobTitle: "AI Engineering Manager",
+    location: "Austin, US",
+    timezone: "America/Chicago",
+    workMode: "OFFICE",
+  },
+  {
+    n: 7,
+    email: "usaiengineer@gmail.com",
+    name: "Marcus Lee",
+    jobTitle: "AI Engineer",
+    location: "Seattle, US",
+    timezone: "America/Los_Angeles",
+    workMode: "REMOTE",
+  },
+  {
+    n: 8,
+    email: "salesmanager@gmail.com",
+    name: "Priya Nair",
+    jobTitle: "Head of Sales",
+    location: "Bengaluru, India",
+    timezone: "Asia/Kolkata",
+    workMode: "OFFICE",
+  },
+  {
+    n: 9,
+    email: "salesexecutive@gmail.com",
+    name: "Ethan Walker",
+    jobTitle: "Sales Executive",
+    location: "London, UK",
+    timezone: "Europe/London",
+    workMode: "REMOTE",
+  },
+  {
+    n: 10,
+    email: "irmanager@gmail.com",
+    name: "Sofia Martins",
+    jobTitle: "Investor Relations Manager",
+    location: "New York, US",
+    timezone: "America/New_York",
+    workMode: "OFFICE",
+  },
+  {
+    n: 11,
+    email: "investor@gmail.com",
+    name: "Robert Hayes",
+    jobTitle: "Investor",
+    location: "Singapore",
+    timezone: "Asia/Singapore",
+    workMode: "EXTERNAL",
+  },
 ];
 
+// The five core teams. The lead holds the team's manager role; other members its member role.
 const teams = [
   {
     n: 1,
@@ -157,7 +149,7 @@ const teams = [
     kind: "LEADERSHIP",
     icon: "briefcase",
     lead: 1,
-    members: [1, 2, 3],
+    members: [2, 3],
   },
   {
     n: 2,
@@ -166,7 +158,7 @@ const teams = [
     kind: "TECHNICAL",
     icon: "code",
     lead: 4,
-    members: [4, 5, 6, 7, 8],
+    members: [5],
   },
   {
     n: 3,
@@ -174,8 +166,8 @@ const teams = [
     purpose: "AI dispatch agent, models and evaluation.",
     kind: "TECHNICAL",
     icon: "sparkles",
-    lead: 9,
-    members: [9, 10, 11, 12, 3, 7],
+    lead: 6,
+    members: [7],
   },
   {
     n: 4,
@@ -183,8 +175,8 @@ const teams = [
     purpose: "Pipeline, pilots and customer accounts.",
     kind: "BUSINESS",
     icon: "megaphone",
-    lead: 13,
-    members: [13, 14, 15],
+    lead: 8,
+    members: [9],
   },
   {
     n: 5,
@@ -192,13 +184,15 @@ const teams = [
     purpose: "External investors with approved information only.",
     kind: "EXTERNAL",
     icon: "trending",
-    lead: 1,
-    members: [16, 17, 1],
+    lead: 10,
+    members: [11],
   },
 ] as const;
 
-const emailFor = (name: string, external: boolean) =>
-  `${name.toLowerCase().replace(/[^a-z]+/g, ".")}@${external ? "investor.example" : "carrieros.example"}`;
+if (process.env.NODE_ENV === "production")
+  throw new Error(
+    "The seed replaces all people and teams; never run it in production.",
+  );
 
 try {
   for (const company of companies)
@@ -207,51 +201,54 @@ try {
       update: {},
       create: company,
     });
-  for (const [n, name, role, location, timezone, workMode] of people) {
-    const external = workMode === "EXTERNAL";
-    await prisma.person.upsert({
-      where: { id: personId(n) },
-      update: {},
-      create: {
-        id: personId(n),
-        name,
-        role,
-        location,
-        timezone,
-        workMode,
-        kind: external ? "EXTERNAL" : "STAFF",
-        email: emailFor(name, external),
-      },
-    });
-  }
-  for (const team of teams) {
-    await prisma.team.upsert({
-      where: { id: teamId(team.n) },
-      update: { isCore: true },
-      create: {
-        id: teamId(team.n),
-        isCore: true,
-        name: team.name,
-        purpose: team.purpose,
-        kind: team.kind,
-        icon: team.icon,
-        leadId: personId(team.lead),
-      },
-    });
-    for (const member of team.members)
-      await prisma.teamMembership.upsert({
-        where: {
-          teamId_personId: {
-            teamId: teamId(team.n),
-            personId: personId(member),
+  const passwordHash = await hashPassword(DEMO_PASSWORD);
+  await prisma.$transaction(async (tx) => {
+    // Start fresh: the directory is replaced with the users below.
+    await tx.session.deleteMany();
+    await tx.teamMembership.deleteMany();
+    await tx.team.deleteMany();
+    await tx.person.deleteMany();
+    for (const person of people)
+      await tx.person.create({
+        data: {
+          id: personId(person.n),
+          name: person.name,
+          email: person.email,
+          jobTitle: person.jobTitle,
+          location: person.location,
+          timezone: person.timezone,
+          workMode: person.workMode,
+          kind: person.workMode === "EXTERNAL" ? "EXTERNAL" : "STAFF",
+          passwordHash,
+          mustChangePassword: false,
+        },
+      });
+    for (const team of teams) {
+      const roles = teamRoles[team.kind];
+      await tx.team.create({
+        data: {
+          id: teamId(team.n),
+          name: team.name,
+          purpose: team.purpose,
+          kind: team.kind,
+          icon: team.icon,
+          isCore: true,
+          leadId: personId(team.lead),
+          memberships: {
+            create: [
+              { personId: personId(team.lead), role: roles.manager },
+              ...team.members.map((member) => ({
+                personId: personId(member),
+                role: roles.member,
+              })),
+            ],
           },
         },
-        update: {},
-        create: { teamId: teamId(team.n), personId: personId(member) },
       });
-  }
+    }
+  });
   console.log(
-    `Seeded ${companies.length} companies, ${people.length} people and ${teams.length} teams (fictional)`,
+    `Seeded ${companies.length} companies, ${people.length} users and ${teams.length} teams (fictional). Demo password: ${DEMO_PASSWORD}`,
   );
 } finally {
   await prisma.$disconnect();

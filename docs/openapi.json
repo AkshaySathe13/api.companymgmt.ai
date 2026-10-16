@@ -3,7 +3,7 @@
   "info": {
     "title": "Company management API",
     "version": "1.0.0",
-    "description": "Local development API. Authentication and tenant authorization are required before production."
+    "description": "Command Center API. Sign in with POST /api/v1/auth/login; the session cookie authorizes every other /api/v1 route. Access comes from each user's team roles."
   },
   "servers": [
     {
@@ -30,7 +30,8 @@
               }
             }
           }
-        }
+        },
+        "security": []
       }
     },
     "/health/ready": {
@@ -67,7 +68,8 @@
               }
             }
           }
-        }
+        },
+        "security": []
       }
     },
     "/api/v1/companies": {
@@ -151,6 +153,26 @@
           },
           "400": {
             "description": "Invalid input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHENTICATED: sign in first",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "FORBIDDEN for this role, or PASSWORD_CHANGE_REQUIRED",
             "content": {
               "application/json": {
                 "schema": {
@@ -248,6 +270,26 @@
               }
             }
           },
+          "401": {
+            "description": "UNAUTHENTICATED: sign in first",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "FORBIDDEN for this role, or PASSWORD_CHANGE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
           "404": {
             "description": "Not found",
             "content": {
@@ -332,6 +374,26 @@
               }
             }
           },
+          "401": {
+            "description": "UNAUTHENTICATED: sign in first",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "FORBIDDEN for this role, or PASSWORD_CHANGE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
           "404": {
             "description": "Not found",
             "content": {
@@ -405,6 +467,26 @@
           },
           "400": {
             "description": "Invalid input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHENTICATED: sign in first",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "FORBIDDEN for this role, or PASSWORD_CHANGE_REQUIRED",
             "content": {
               "application/json": {
                 "schema": {
@@ -499,6 +581,26 @@
               }
             }
           },
+          "401": {
+            "description": "UNAUTHENTICATED: sign in first",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "FORBIDDEN for this role, or PASSWORD_CHANGE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
           "429": {
             "description": "Rate limit exceeded"
           }
@@ -543,8 +645,18 @@
               }
             }
           },
+          "401": {
+            "description": "UNAUTHENTICATED: sign in first",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
           "403": {
-            "description": "FORBIDDEN when the role is not manager or executive.",
+            "description": "FORBIDDEN for this role: see the access rules in the README.",
             "content": {
               "application/json": {
                 "schema": {
@@ -554,7 +666,7 @@
             }
           },
           "409": {
-            "description": "Team name already used",
+            "description": "Team name already used; RETRY when a concurrent change conflicted",
             "content": {
               "application/json": {
                 "schema": {
@@ -567,11 +679,8 @@
             "description": "Rate limit exceeded"
           }
         },
-        "parameters": [
-          {
-            "$ref": "#/components/parameters/PreviewRole"
-          }
-        ]
+        "parameters": [],
+        "description": "The lead must be STAFF (LEAD_MUST_BE_STAFF) and becomes a member."
       }
     },
     "/api/v1/teams/{id}": {
@@ -607,6 +716,26 @@
           },
           "400": {
             "description": "Invalid input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHENTICATED: sign in first",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "FORBIDDEN for this role, or PASSWORD_CHANGE_REQUIRED",
             "content": {
               "application/json": {
                 "schema": {
@@ -669,8 +798,18 @@
               }
             }
           },
+          "401": {
+            "description": "UNAUTHENTICATED: sign in first",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
           "403": {
-            "description": "FORBIDDEN for developers; CORE_TEAM_LOCKED when a manager edits a core team.",
+            "description": "FORBIDDEN unless the Leadership Lead.",
             "content": {
               "application/json": {
                 "schema": {
@@ -690,7 +829,7 @@
             }
           },
           "409": {
-            "description": "Team name already used",
+            "description": "Team name already used; RETRY when a concurrent change conflicted",
             "content": {
               "application/json": {
                 "schema": {
@@ -703,16 +842,12 @@
             "description": "Rate limit exceeded"
           }
         },
-        "parameters": [
-          {
-            "$ref": "#/components/parameters/PreviewRole"
-          }
-        ],
-        "description": "Executives can edit any team; managers only teams that are not core."
+        "parameters": [],
+        "description": "Leadership Lead only. A new lead must be STAFF; they take the team's manager role and the previous lead becomes a member."
       },
       "delete": {
         "summary": "Delete team",
-        "description": "Refused with TEAM_HAS_ONLY_MEMBERS when some members have no other team. Executives can delete any team; managers only teams that are not core.",
+        "description": "Refused with TEAM_HAS_ONLY_MEMBERS when some members have no other team. Leadership Lead only.",
         "responses": {
           "204": {
             "description": "Deleted"
@@ -727,8 +862,18 @@
               }
             }
           },
+          "401": {
+            "description": "UNAUTHENTICATED: sign in first",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
           "403": {
-            "description": "FORBIDDEN for developers; CORE_TEAM_LOCKED when a manager deletes a core team.",
+            "description": "FORBIDDEN unless the Leadership Lead.",
             "content": {
               "application/json": {
                 "schema": {
@@ -748,7 +893,7 @@
             }
           },
           "409": {
-            "description": "Members would be left without a team",
+            "description": "Members would be left without a team; RETRY when a concurrent change conflicted",
             "content": {
               "application/json": {
                 "schema": {
@@ -761,11 +906,7 @@
             "description": "Rate limit exceeded"
           }
         },
-        "parameters": [
-          {
-            "$ref": "#/components/parameters/PreviewRole"
-          }
-        ]
+        "parameters": []
       }
     },
     "/api/v1/teams/{id}/members": {
@@ -827,8 +968,18 @@
               }
             }
           },
+          "401": {
+            "description": "UNAUTHENTICATED: sign in first",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
           "403": {
-            "description": "FORBIDDEN when the role is not manager or executive.",
+            "description": "FORBIDDEN for this role: see the access rules in the README.",
             "content": {
               "application/json": {
                 "schema": {
@@ -847,15 +998,21 @@
               }
             }
           },
+          "409": {
+            "description": "RETRY when a concurrent change conflicted; try again.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
           "429": {
             "description": "Rate limit exceeded"
           }
         },
-        "parameters": [
-          {
-            "$ref": "#/components/parameters/PreviewRole"
-          }
-        ]
+        "parameters": []
       }
     },
     "/api/v1/teams/{id}/members/{personId}": {
@@ -909,8 +1066,18 @@
               }
             }
           },
+          "401": {
+            "description": "UNAUTHENTICATED: sign in first",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
           "403": {
-            "description": "FORBIDDEN when the role is not manager or executive.",
+            "description": "FORBIDDEN for this role: see the access rules in the README.",
             "content": {
               "application/json": {
                 "schema": {
@@ -930,7 +1097,7 @@
             }
           },
           "409": {
-            "description": "Lead or last team",
+            "description": "Lead or last team; RETRY when a concurrent change conflicted",
             "content": {
               "application/json": {
                 "schema": {
@@ -943,11 +1110,7 @@
             "description": "Rate limit exceeded"
           }
         },
-        "parameters": [
-          {
-            "$ref": "#/components/parameters/PreviewRole"
-          }
-        ]
+        "parameters": []
       }
     },
     "/api/v1/people": {
@@ -1019,6 +1182,26 @@
               }
             }
           },
+          "401": {
+            "description": "UNAUTHENTICATED: sign in first",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "FORBIDDEN for this role, or PASSWORD_CHANGE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
           "429": {
             "description": "Rate limit exceeded"
           }
@@ -1063,8 +1246,28 @@
               }
             }
           },
+          "401": {
+            "description": "UNAUTHENTICATED: sign in first",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "FORBIDDEN for this role: see the access rules in the README.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
           "409": {
-            "description": "Email already used",
+            "description": "Email already used; RETRY when a concurrent change conflicted",
             "content": {
               "application/json": {
                 "schema": {
@@ -1076,7 +1279,8 @@
           "429": {
             "description": "Rate limit exceeded"
           }
-        }
+        },
+        "parameters": []
       }
     },
     "/api/v1/people/{id}": {
@@ -1112,6 +1316,26 @@
           },
           "400": {
             "description": "Invalid input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHENTICATED: sign in first",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "FORBIDDEN for this role, or PASSWORD_CHANGE_REQUIRED",
             "content": {
               "application/json": {
                 "schema": {
@@ -1174,6 +1398,26 @@
               }
             }
           },
+          "401": {
+            "description": "UNAUTHENTICATED: sign in first",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "FORBIDDEN for this role: see the access rules in the README.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
           "404": {
             "description": "Not found",
             "content": {
@@ -1185,7 +1429,7 @@
             }
           },
           "409": {
-            "description": "Email already used",
+            "description": "Email already used; RETRY when a concurrent change conflicted",
             "content": {
               "application/json": {
                 "schema": {
@@ -1197,7 +1441,9 @@
           "429": {
             "description": "Rate limit exceeded"
           }
-        }
+        },
+        "parameters": [],
+        "description": "Refused with EMAIL_TAKEN for another person's email, and PERSON_LEADS_TEAM when a team lead would become EXTERNAL."
       },
       "delete": {
         "summary": "Delete person",
@@ -1216,6 +1462,26 @@
               }
             }
           },
+          "401": {
+            "description": "UNAUTHENTICATED: sign in first",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "FORBIDDEN for this role: see the access rules in the README.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
           "404": {
             "description": "Not found",
             "content": {
@@ -1227,7 +1493,7 @@
             }
           },
           "409": {
-            "description": "Person leads a team",
+            "description": "Person leads a team; RETRY when a concurrent change conflicted",
             "content": {
               "application/json": {
                 "schema": {
@@ -1239,7 +1505,8 @@
           "429": {
             "description": "Rate limit exceeded"
           }
-        }
+        },
+        "parameters": []
       }
     },
     "/api/v1/ai/status": {
@@ -1258,6 +1525,26 @@
                       "$ref": "#/components/schemas/AiStatus"
                     }
                   }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHENTICATED: sign in first",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "FORBIDDEN for this role, or PASSWORD_CHANGE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
                 }
               }
             }
@@ -1306,6 +1593,26 @@
               }
             }
           },
+          "401": {
+            "description": "UNAUTHENTICATED: sign in first",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "FORBIDDEN for this role, or PASSWORD_CHANGE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
           "429": {
             "description": "Rate limit exceeded"
           },
@@ -1321,6 +1628,289 @@
           },
           "503": {
             "description": "AI not configured or unreachable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/login": {
+      "post": {
+        "summary": "Sign in",
+        "description": "Sets the HTTP-only cc_session cookie (12 hours). Wrong passwords and unknown emails get the same 401. 10 failed attempts per 15 minutes per address.",
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["email", "password"],
+                "properties": {
+                  "email": {
+                    "type": "string",
+                    "format": "email"
+                  },
+                  "password": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["data"],
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/Me"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "INVALID_CREDENTIALS",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "ACCOUNT_SUSPENDED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many attempts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/logout": {
+      "post": {
+        "summary": "Sign out",
+        "security": [],
+        "responses": {
+          "204": {
+            "description": "Signed out; cookie cleared"
+          }
+        }
+      }
+    },
+    "/api/v1/auth/me": {
+      "get": {
+        "summary": "The signed-in user, their team roles, sections and permissions",
+        "description": "Available while a password change is pending.",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["data"],
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/Me"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHENTICATED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "FORBIDDEN for this role, or PASSWORD_CHANGE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/password": {
+      "post": {
+        "summary": "Change own password",
+        "description": "Clears mustChangePassword and signs out the user's other sessions.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["currentPassword", "newPassword"],
+                "properties": {
+                  "currentPassword": {
+                    "type": "string"
+                  },
+                  "newPassword": {
+                    "type": "string",
+                    "minLength": 10
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["data"],
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/Me"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "WRONG_PASSWORD or invalid new password",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHENTICATED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "FORBIDDEN for this role, or PASSWORD_CHANGE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/people/{id}/password": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      ],
+      "post": {
+        "summary": "Reset a password",
+        "description": "Leadership Lead, or the person's team manager. Sets a temporary password, requires a change at next sign-in and signs the person out everywhere.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["temporaryPassword"],
+                "properties": {
+                  "temporaryPassword": {
+                    "type": "string",
+                    "minLength": 10
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Reset"
+          },
+          "401": {
+            "description": "UNAUTHENTICATED: sign in first",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
             "content": {
               "application/json": {
                 "schema": {
@@ -1466,29 +2056,9 @@
           }
         }
       },
-      "PersonSummary": {
-        "type": "object",
-        "required": ["id", "name", "role", "workMode"],
-        "properties": {
-          "id": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "name": {
-            "type": "string"
-          },
-          "role": {
-            "type": "string"
-          },
-          "workMode": {
-            "type": "string",
-            "enum": ["OFFICE", "REMOTE", "EXTERNAL"]
-          }
-        }
-      },
       "TeamSummary": {
         "type": "object",
-        "required": ["id", "name", "icon", "kind"],
+        "required": ["id", "name", "icon", "kind", "role", "roleLabel"],
         "properties": {
           "id": {
             "type": "string",
@@ -1501,22 +2071,30 @@
             "type": "string"
           },
           "kind": {
-            "type": "string",
-            "enum": ["LEADERSHIP", "TECHNICAL", "BUSINESS", "EXTERNAL"]
+            "type": "string"
+          },
+          "role": {
+            "$ref": "#/components/schemas/TeamRole"
+          },
+          "roleLabel": {
+            "type": "string"
           }
         }
       },
       "Person": {
         "type": "object",
+        "description": "A person as the signed-in user may see them. Outside the viewer's teams (unless they are an executive) restricted is true and email, location, timezone, workMode and status are null. Investors only see people in their own teams.",
         "required": [
           "id",
           "name",
+          "jobTitle",
+          "kind",
+          "restricted",
           "email",
-          "role",
           "location",
           "timezone",
           "workMode",
-          "kind",
+          "status",
           "teams",
           "leadsTeamIds",
           "createdAt",
@@ -1531,26 +2109,34 @@
             "type": "string",
             "maxLength": 120
           },
-          "email": {
+          "jobTitle": {
             "type": "string",
-            "format": "email"
-          },
-          "role": {
-            "type": "string"
-          },
-          "location": {
-            "type": "string"
-          },
-          "timezone": {
-            "type": "string"
-          },
-          "workMode": {
-            "type": "string",
-            "enum": ["OFFICE", "REMOTE", "EXTERNAL"]
+            "maxLength": 120
           },
           "kind": {
             "type": "string",
             "enum": ["STAFF", "EXTERNAL"]
+          },
+          "restricted": {
+            "type": "boolean"
+          },
+          "email": {
+            "type": ["string", "null"],
+            "format": "email"
+          },
+          "location": {
+            "type": ["string", "null"]
+          },
+          "timezone": {
+            "type": ["string", "null"]
+          },
+          "workMode": {
+            "type": ["string", "null"],
+            "enum": ["OFFICE", "REMOTE", "EXTERNAL", null]
+          },
+          "status": {
+            "type": ["string", "null"],
+            "enum": ["ACTIVE", "SUSPENDED", null]
           },
           "teams": {
             "type": "array",
@@ -1578,13 +2164,15 @@
       "PersonInput": {
         "type": "object",
         "additionalProperties": false,
+        "description": "Creates a user in one team with that team's member role. They must replace the temporary password at first sign-in.",
         "required": [
           "name",
           "email",
-          "role",
+          "jobTitle",
           "location",
           "timezone",
-          "teamIds"
+          "teamId",
+          "temporaryPassword"
         ],
         "properties": {
           "name": {
@@ -1595,9 +2183,10 @@
           "email": {
             "type": "string",
             "format": "email",
-            "maxLength": 254
+            "maxLength": 254,
+            "description": "Trimmed, lower-cased, unique."
           },
-          "role": {
+          "jobTitle": {
             "type": "string",
             "minLength": 2,
             "maxLength": 120
@@ -1609,22 +2198,21 @@
           },
           "timezone": {
             "type": "string",
-            "minLength": 2,
-            "maxLength": 60
+            "description": "IANA time zone, e.g. Asia/Kolkata."
           },
           "workMode": {
             "type": "string",
             "enum": ["OFFICE", "REMOTE", "EXTERNAL"],
             "default": "OFFICE"
           },
-          "teamIds": {
-            "type": "array",
-            "items": {
-              "type": "string",
-              "format": "uuid"
-            },
-            "minItems": 1,
-            "maxItems": 20
+          "teamId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "temporaryPassword": {
+            "type": "string",
+            "minLength": 10,
+            "maxLength": 200
           }
         }
       },
@@ -1640,20 +2228,33 @@
           },
           "email": {
             "type": "string",
-            "format": "email"
+            "format": "email",
+            "maxLength": 254,
+            "description": "Trimmed, lower-cased, unique."
           },
-          "role": {
-            "type": "string"
+          "jobTitle": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 120
           },
           "location": {
-            "type": "string"
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 120
           },
           "timezone": {
-            "type": "string"
+            "type": "string",
+            "description": "IANA time zone, e.g. Asia/Kolkata."
           },
           "workMode": {
             "type": "string",
-            "enum": ["OFFICE", "REMOTE", "EXTERNAL"]
+            "enum": ["OFFICE", "REMOTE", "EXTERNAL"],
+            "default": "OFFICE"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["ACTIVE", "SUSPENDED"],
+            "description": "Leadership Lead only. Suspending signs the person out everywhere."
           }
         }
       },
@@ -1709,12 +2310,19 @@
             "nullable": true
           },
           "lead": {
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/PersonSummary"
+            "type": ["object", "null"],
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "name": {
+                "type": "string"
+              },
+              "jobTitle": {
+                "type": "string"
               }
-            ],
-            "nullable": true
+            }
           },
           "isCore": {
             "type": "boolean",
@@ -1726,7 +2334,7 @@
           "members": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/PersonSummary"
+              "$ref": "#/components/schemas/TeamMember"
             }
           },
           "createdAt": {
@@ -1890,19 +2498,138 @@
             "type": "string"
           }
         }
-      }
-    },
-    "parameters": {
-      "PreviewRole": {
-        "name": "X-Preview-Role",
-        "in": "header",
-        "required": false,
-        "description": "Demo-only preview role from the frontend role switcher; not authentication. Missing or unknown values are treated as developer (read-only).",
-        "schema": {
-          "type": "string",
-          "enum": ["executive", "manager", "developer"]
+      },
+      "TeamRole": {
+        "type": "string",
+        "enum": [
+          "LEADERSHIP_LEAD",
+          "EXECUTIVE_MEMBER",
+          "TEAM_MANAGER",
+          "TEAM_MEMBER",
+          "SALES_MANAGER",
+          "SALES_MEMBER",
+          "INVESTOR_RELATIONS_MANAGER",
+          "INVESTOR"
+        ],
+        "description": "Role in one team. Each team kind offers a manager role (held by the lead) and a member role: LEADERSHIP Leadership Lead / Executive Member, TECHNICAL Team Manager / Team Member, BUSINESS Sales Manager / Sales Member, EXTERNAL Investor Relations Manager / Investor."
+      },
+      "TeamMember": {
+        "type": "object",
+        "required": ["id", "name", "jobTitle", "role", "roleLabel", "workMode"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "jobTitle": {
+            "type": "string"
+          },
+          "role": {
+            "$ref": "#/components/schemas/TeamRole"
+          },
+          "roleLabel": {
+            "type": "string"
+          },
+          "workMode": {
+            "type": ["string", "null"],
+            "enum": ["OFFICE", "REMOTE", "EXTERNAL", null],
+            "description": "Null when hidden from the viewer."
+          }
+        }
+      },
+      "Me": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "email",
+          "jobTitle",
+          "mustChangePassword",
+          "memberships",
+          "sections",
+          "permissions"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "jobTitle": {
+            "type": "string"
+          },
+          "mustChangePassword": {
+            "type": "boolean"
+          },
+          "memberships": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "teamId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "teamName": {
+                  "type": "string"
+                },
+                "teamKind": {
+                  "type": "string"
+                },
+                "role": {
+                  "$ref": "#/components/schemas/TeamRole"
+                },
+                "roleLabel": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "sections": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Navigation sections this user may open."
+          },
+          "permissions": {
+            "type": "object",
+            "properties": {
+              "administer": {
+                "type": "boolean",
+                "description": "Leadership Lead: manages every team, user and role."
+              },
+              "managedTeamIds": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          }
         }
       }
+    },
+    "securitySchemes": {
+      "session": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "cc_session"
+      }
     }
-  }
+  },
+  "security": [
+    {
+      "session": []
+    }
+  ]
 }

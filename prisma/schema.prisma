@@ -37,6 +37,26 @@ enum WorkMode {
   EXTERNAL
 }
 
+enum PersonStatus {
+  ACTIVE
+  SUSPENDED
+}
+
+/// A person's role inside one team. The team's kind decides which two roles it offers:
+/// LEADERSHIP: LEADERSHIP_LEAD / EXECUTIVE_MEMBER, TECHNICAL: TEAM_MANAGER / TEAM_MEMBER,
+/// BUSINESS: SALES_MANAGER / SALES_MEMBER, EXTERNAL: INVESTOR_RELATIONS_MANAGER / INVESTOR.
+/// The team lead always holds the manager role.
+enum TeamRole {
+  LEADERSHIP_LEAD
+  EXECUTIVE_MEMBER
+  TEAM_MANAGER
+  TEAM_MEMBER
+  SALES_MANAGER
+  SALES_MEMBER
+  INVESTOR_RELATIONS_MANAGER
+  INVESTOR
+}
+
 enum TeamKind {
   LEADERSHIP
   TECHNICAL
@@ -44,22 +64,54 @@ enum TeamKind {
   EXTERNAL
 }
 
-/// A person in the company directory: staff or an external contact such as an investor.
+/// A person in the company directory and a user who can sign in: staff or an external contact
+/// such as an investor. Access comes from their team roles.
 model Person {
-  id          String           @id @default(uuid()) @db.Uuid
-  name        String           @db.VarChar(120)
-  email       String           @unique @db.VarChar(254)
-  role        String           @db.VarChar(120)
-  location    String           @db.VarChar(120)
-  timezone    String           @db.VarChar(60)
-  workMode    WorkMode         @default(OFFICE)
-  kind        PersonKind       @default(STAFF)
-  createdAt   DateTime         @default(now())
-  updatedAt   DateTime         @updatedAt
-  memberships TeamMembership[]
-  ledTeams    Team[]           @relation("TeamLead")
+  id                 String           @id @default(uuid()) @db.Uuid
+  name               String           @db.VarChar(120)
+  email              String           @unique @db.VarChar(254)
+  jobTitle           String           @db.VarChar(120)
+  /// scrypt hash; null means the person can't sign in yet.
+  passwordHash       String?          @db.VarChar(200)
+  mustChangePassword Boolean          @default(true)
+  status             PersonStatus     @default(ACTIVE)
+  location           String           @db.VarChar(120)
+  timezone           String           @db.VarChar(60)
+  workMode           WorkMode         @default(OFFICE)
+  kind               PersonKind       @default(STAFF)
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+  memberships        TeamMembership[]
+  ledTeams           Team[]           @relation("TeamLead")
+  sessions           Session[]
 
   @@index([name])
+}
+
+/// A signed-in browser. The cookie holds a random token; only its SHA-256 hash is stored.
+model Session {
+  id         String   @id @db.VarChar(64)
+  personId   String   @db.Uuid
+  person     Person   @relation(fields: [personId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
+  expiresAt  DateTime
+  lastSeenAt DateTime @default(now())
+
+  @@index([personId])
+  @@index([expiresAt])
+}
+
+/// Who changed users, roles or access, and what changed.
+model AuditEvent {
+  id         String   @id @default(uuid()) @db.Uuid
+  actorId    String?  @db.Uuid
+  action     String   @db.VarChar(60)
+  targetType String   @db.VarChar(40)
+  targetId   String   @db.Uuid
+  details    Json
+  createdAt  DateTime @default(now())
+
+  @@index([targetType, targetId, createdAt])
 }
 
 /// A company team. Membership is many-to-many: one person can belong to several teams.
@@ -81,6 +133,7 @@ model Team {
 model TeamMembership {
   teamId    String   @db.Uuid
   personId  String   @db.Uuid
+  role      TeamRole
   team      Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
   person    Person   @relation(fields: [personId], references: [id], onDelete: Cascade)
   createdAt DateTime @default(now())

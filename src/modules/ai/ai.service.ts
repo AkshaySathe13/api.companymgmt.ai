@@ -3,12 +3,15 @@ import type { z } from "zod";
 import { env } from "../../config/env.js";
 import { AppError } from "../../lib/errors.js";
 import type { askInput, AiView } from "./ai.schema.js";
+import type { Viewer } from "../../lib/access.js";
 import { createTools } from "./ai.tools.js";
 
 // Kept byte-stable (no dates or IDs) so the prompt prefix can be cached.
 export const SYSTEM_PROMPT = `You are the AI assistant inside CarrierOS Command Center, the company's internal management portal.
 
-You can read the company's teams and people through tools. People can belong to several teams. External people (kind EXTERNAL) are investors or other contacts, not employees.
+You can read the company's teams and people through tools. People can belong to several teams, with a team role in each (for example Team Manager or Team Member). External people (kind EXTERNAL) are investors or other contacts, not employees.
+
+The tools only return what the person asking is allowed to see. When a field is null because it is hidden from them, say it isn't available to them; never guess it.
 
 How to answer:
 - Look the facts up with the tools before answering. Never invent people, teams, roles, locations or counts.
@@ -45,6 +48,7 @@ export const aiService = {
   },
 
   async ask(
+    viewer: Viewer,
     input: z.infer<typeof askInput>,
     aiClient: AiClient | undefined = defaultClient(),
   ) {
@@ -67,7 +71,7 @@ export const aiService = {
         max_iterations: 8,
         output_config: { effort: "medium" },
         system: SYSTEM_PROMPT,
-        tools: createTools(views),
+        tools: createTools(viewer, views),
         messages,
         ...(FALLBACK_MODELS.has(env.AI_MODEL)
           ? {
@@ -120,7 +124,7 @@ export const aiService = {
       text ||
       (views.length
         ? "Here's what I found."
-        : "I couldn't find an answer in the teams and people records.");
+        : "I couldn't find an answer in your teams and people.");
     if (
       message.stop_reason === "max_tokens" ||
       message.stop_reason === "tool_use"

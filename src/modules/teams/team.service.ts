@@ -1,174 +1,299 @@
 import type { z } from "zod";
-import { prisma } from "../../lib/prisma.js";
+import { prisma, serializable } from "../../lib/prisma.js";
 import { AppError } from "../../lib/errors.js";
-import { assertCanManage, type PreviewRole } from "../../lib/preview-role.js";
-import type { Prisma } from "../../generated/prisma/client.js";
+import { audit } from "../../lib/audit.js";
+import {
+  assertLeadershipLead,
+  assertManagesTeam,
+  canSeeFullProfile,
+  isInvestorOnly,
+  roleLabels,
+  teamIdsOf,
+  teamRoles,
+  type Viewer,
+} from "../../lib/access.js";
+import type { Prisma, TeamKind } from "../../generated/prisma/client.js";
 import { teamInput, teamQuery, teamUpdate } from "./team.schema.js";
 
-const personSummary = {
-  id: true,
-  name: true,
-  role: true,
-  workMode: true,
-} satisfies Prisma.PersonSelect;
+type Db = Prisma.TransactionClient;
 
 const teamInclude = {
-  lead: { select: personSummary },
+  lead: { select: { id: true, name: true, jobTitle: true } },
   memberships: {
-    include: { person: { select: personSummary } },
+    include: {
+      person: {
+        select: {
+          id: true,
+          name: true,
+          jobTitle: true,
+          workMode: true,
+          memberships: { select: { teamId: true } },
+        },
+      },
+    },
     orderBy: { person: { name: "asc" } },
   },
 } satisfies Prisma.TeamInclude;
 
 type TeamRow = Prisma.TeamGetPayload<{ include: typeof teamInclude }>;
 
-export function toTeam(row: TeamRow) {
+/** A team as `viewer` may see it: work mode only for people whose full profile they can see. */
+export function toTeam(row: TeamRow, viewer: Viewer) {
   const { memberships, ...team } = row;
   return {
     ...team,
     memberCount: memberships.length,
-    members: memberships.map((membership) => membership.person),
+    members: memberships.map(({ person, role }) => {
+      const full = canSeeFullProfile(
+        viewer,
+        person.memberships.map((m) => m.teamId),
+      );
+      return {
+        id: person.id,
+        name: person.name,
+        jobTitle: person.jobTitle,
+        role,
+        roleLabel: roleLabels[role],
+        workMode: full ? person.workMode : null,
+      };
+    }),
   };
 }
 
-async function assertNameFree(name: string, exceptId?: string) {
-  const existing = await prisma.team.findFirst({
+/** Investors only see their own teams; everyone else sees the whole directory. */
+function visibleTeams(viewer: Viewer): Prisma.TeamWhereInput {
+  return isInvestorOnly(viewer) ? { id: { in: teamIdsOf(viewer) } } : {};
+}
+
+async function findTeam(db: Db, id: string, viewer?: Viewer) {
+  const row = await db.team.findFirst({
+    // AND keeps the visibility filter from replacing the id condition.
+    where: { AND: [{ id }, viewer ? visibleTeams(viewer) : {}] },
+    include: teamInclude,
+  });
+  if (!row) throw new AppError(404, "NOT_FOUND", "Team not found");
+  return row;
+}
+
+async function assertNameFree(db: Db, name: string, exceptId?: string) {
+  const existing = await db.team.findFirst({
     where: { name: { equals: name, mode: "insensitive" } },
   });
   if (existing && existing.id !== exceptId)
-    throw new AppError(409, "TEAM_NAME_TAKEN", "A team with this name exists");
-}
-
-async function assertPerson(id: string) {
-  const person = await prisma.person.findUnique({ where: { id } });
-  if (!person) throw new AppError(400, "UNKNOWN_PERSON", "Person not found");
-  return person;
-}
-
-// Managers can change the teams they create; core company teams need an executive.
-function assertCanChange(
-  team: { name: string; isCore: boolean },
-  role: PreviewRole,
-) {
-  assertCanManage(role);
-  if (team.isCore && role !== "executive")
     throw new AppError(
-      403,
-      "CORE_TEAM_LOCKED",
-      `${team.name} is a core company team. Only an executive can edit or delete it.`,
+      409,
+      "TEAM_NAME_TAKEN",
+      "A team with this name already exists.",
     );
 }
 
+// Teams are led by staff; external contacts such as investors can be members but not leads.
+async function assertLead(db: Db, id: string) {
+  const person = await db.person.findUnique({ where: { id } });
+  if (!person) throw new AppError(400, "UNKNOWN_PERSON", "Person not found");
+  if (person.kind !== "STAFF")
+    throw new AppError(
+      400,
+      "LEAD_MUST_BE_STAFF",
+      `${person.name} is an external contact and can't lead a team.`,
+    );
+}
+
+/** Team roles follow the team: the lead holds its manager role, everyone else its member role. */
+async function syncRoles(
+  db: Db,
+  teamId: string,
+  kind: TeamKind,
+  leadId: string | null,
+) {
+  const { manager, member } = teamRoles[kind];
+  await db.teamMembership.updateMany({
+    where: { teamId, ...(leadId ? { personId: { not: leadId } } : {}) },
+    data: { role: member },
+  });
+  if (leadId)
+    await db.teamMembership.updateMany({
+      where: { teamId, personId: leadId },
+      data: { role: manager },
+    });
+}
+
 export const teamService = {
-  async list(query: z.infer<typeof teamQuery>) {
+  async list(viewer: Viewer, query: z.infer<typeof teamQuery>) {
     const rows = await prisma.team.findMany({
-      where: query.search
-        ? { name: { contains: query.search, mode: "insensitive" } }
-        : {},
+      where: {
+        AND: [
+          visibleTeams(viewer),
+          query.search
+            ? { name: { contains: query.search, mode: "insensitive" } }
+            : {},
+        ],
+      },
       include: teamInclude,
       orderBy: [{ name: "asc" }, { id: "asc" }],
     });
-    return { data: rows.map(toTeam) };
+    return { data: rows.map((row) => toTeam(row, viewer)) };
   },
 
-  async get(id: string) {
-    const row = await prisma.team.findUnique({
-      where: { id },
-      include: teamInclude,
+  async get(viewer: Viewer, id: string) {
+    return toTeam(await findTeam(prisma, id, viewer), viewer);
+  },
+
+  async create(viewer: Viewer, input: z.infer<typeof teamInput>) {
+    assertLeadershipLead(viewer, "create teams");
+    const row = await serializable(async (tx) => {
+      await assertNameFree(tx, input.name);
+      await assertLead(tx, input.leadId);
+      const team = await tx.team.create({
+        data: {
+          ...input,
+          memberships: {
+            create: {
+              personId: input.leadId,
+              role: teamRoles[input.kind].manager,
+            },
+          },
+        },
+      });
+      await audit(tx, {
+        actorId: viewer.id,
+        action: "team.created",
+        targetType: "team",
+        targetId: team.id,
+        details: { name: team.name, leadId: team.leadId },
+      });
+      return findTeam(tx, team.id);
     });
-    if (!row) throw new AppError(404, "NOT_FOUND", "Team not found");
-    return toTeam(row);
+    return toTeam(row, viewer);
   },
 
-  async create(input: z.infer<typeof teamInput>, role: PreviewRole) {
-    assertCanManage(role);
-    await assertNameFree(input.name);
-    await assertPerson(input.leadId);
-    // The lead is always a member of the team they lead.
-    const row = await prisma.team.create({
-      data: { ...input, memberships: { create: { personId: input.leadId } } },
-      include: teamInclude,
-    });
-    return toTeam(row);
-  },
-
-  async update(
-    id: string,
-    input: z.infer<typeof teamUpdate>,
-    role: PreviewRole,
-  ) {
-    assertCanChange(await this.get(id), role);
-    if (input.name) await assertNameFree(input.name, id);
-    if (input.leadId) await assertPerson(input.leadId);
-    const row = await prisma.$transaction(async (tx) => {
-      if (input.leadId)
+  async update(viewer: Viewer, id: string, input: z.infer<typeof teamUpdate>) {
+    assertLeadershipLead(viewer, "edit teams");
+    const row = await serializable(async (tx) => {
+      const before = await findTeam(tx, id);
+      if (input.name) await assertNameFree(tx, input.name, id);
+      if (input.leadId) {
+        await assertLead(tx, input.leadId);
         await tx.teamMembership.upsert({
           where: { teamId_personId: { teamId: id, personId: input.leadId } },
           update: {},
-          create: { teamId: id, personId: input.leadId },
+          create: {
+            teamId: id,
+            personId: input.leadId,
+            role: teamRoles[input.kind ?? before.kind].member,
+          },
         });
-      return tx.team.update({
-        where: { id },
-        data: input,
-        include: teamInclude,
+      }
+      const team = await tx.team.update({ where: { id }, data: input });
+      // A new lead or a new team kind changes the team's roles.
+      if (input.leadId || input.kind)
+        await syncRoles(tx, id, team.kind, team.leadId);
+      await audit(tx, {
+        actorId: viewer.id,
+        action: "team.updated",
+        targetType: "team",
+        targetId: id,
+        details: {
+          before: {
+            name: before.name,
+            kind: before.kind,
+            leadId: before.leadId,
+          },
+          after: { name: team.name, kind: team.kind, leadId: team.leadId },
+        },
+      });
+      return findTeam(tx, id);
+    });
+    return toTeam(row, viewer);
+  },
+
+  async remove(viewer: Viewer, id: string) {
+    assertLeadershipLead(viewer, "delete teams");
+    await serializable(async (tx) => {
+      const team = await findTeam(tx, id);
+      // People must keep at least one team, so a team can't take its last members with it.
+      const stranded = await tx.person.count({
+        where: {
+          memberships: { some: { teamId: id }, every: { teamId: id } },
+        },
+      });
+      if (stranded)
+        throw new AppError(
+          409,
+          "TEAM_HAS_ONLY_MEMBERS",
+          `${stranded} ${stranded === 1 ? "person has" : "people have"} no other team. Add them to another team before deleting ${team.name}.`,
+        );
+      await tx.team.delete({ where: { id } });
+      await audit(tx, {
+        actorId: viewer.id,
+        action: "team.deleted",
+        targetType: "team",
+        targetId: id,
+        details: { name: team.name },
       });
     });
-    return toTeam(row);
   },
 
-  async remove(id: string, role: PreviewRole) {
-    const team = await this.get(id);
-    assertCanChange(team, role);
-    // People must keep at least one team, so a team can't take its last members with it.
-    const stranded = await prisma.person.count({
-      where: {
-        memberships: { some: { teamId: id }, every: { teamId: id } },
-      },
+  async addMember(viewer: Viewer, id: string, personId: string) {
+    assertManagesTeam(viewer, id);
+    const row = await serializable(async (tx) => {
+      const team = await findTeam(tx, id);
+      const person = await tx.person.findUnique({ where: { id: personId } });
+      if (!person)
+        throw new AppError(400, "UNKNOWN_PERSON", "Person not found");
+      const existing = await tx.teamMembership.findUnique({
+        where: { teamId_personId: { teamId: id, personId } },
+      });
+      if (!existing) {
+        const role = teamRoles[team.kind].member;
+        await tx.teamMembership.create({
+          data: { teamId: id, personId, role },
+        });
+        await audit(tx, {
+          actorId: viewer.id,
+          action: "membership.added",
+          targetType: "person",
+          targetId: personId,
+          details: { teamId: id, team: team.name, role },
+        });
+      }
+      return findTeam(tx, id);
     });
-    if (stranded)
-      throw new AppError(
-        409,
-        "TEAM_HAS_ONLY_MEMBERS",
-        `${stranded} ${stranded === 1 ? "person has" : "people have"} no other team. Add them to another team before deleting ${team.name}.`,
-      );
-    await prisma.team.delete({ where: { id } });
+    return toTeam(row, viewer);
   },
 
-  async addMember(id: string, personId: string, role: PreviewRole) {
-    assertCanManage(role);
-    await this.get(id);
-    await assertPerson(personId);
-    await prisma.teamMembership.upsert({
-      where: { teamId_personId: { teamId: id, personId } },
-      update: {},
-      create: { teamId: id, personId },
+  async removeMember(viewer: Viewer, id: string, personId: string) {
+    assertManagesTeam(viewer, id);
+    const row = await serializable(async (tx) => {
+      const team = await findTeam(tx, id);
+      const membership = team.memberships.find((m) => m.personId === personId);
+      if (!membership)
+        throw new AppError(404, "NOT_FOUND", "This person isn't in the team");
+      if (team.leadId === personId)
+        throw new AppError(
+          409,
+          "LEAD_CANNOT_LEAVE",
+          "The team lead can't be removed. Choose a new lead first.",
+        );
+      const teamCount = await tx.teamMembership.count({ where: { personId } });
+      if (teamCount <= 1)
+        throw new AppError(
+          409,
+          "LAST_TEAM",
+          "Everyone needs at least one team. Add this person to another team first.",
+        );
+      await tx.teamMembership.delete({
+        where: { teamId_personId: { teamId: id, personId } },
+      });
+      await audit(tx, {
+        actorId: viewer.id,
+        action: "membership.removed",
+        targetType: "person",
+        targetId: personId,
+        details: { teamId: id, team: team.name, role: membership.role },
+      });
+      return findTeam(tx, id);
     });
-    return this.get(id);
-  },
-
-  async removeMember(id: string, personId: string, role: PreviewRole) {
-    assertCanManage(role);
-    const team = await this.get(id);
-    if (!team.members.some((member) => member.id === personId))
-      throw new AppError(404, "NOT_FOUND", "This person isn't in the team");
-    if (team.leadId === personId)
-      throw new AppError(
-        409,
-        "LEAD_CANNOT_LEAVE",
-        "The team lead can't be removed. Choose a new lead first.",
-      );
-    const teamCount = await prisma.teamMembership.count({
-      where: { personId },
-    });
-    if (teamCount <= 1)
-      throw new AppError(
-        409,
-        "LAST_TEAM",
-        "Everyone needs at least one team. Add this person to another team first.",
-      );
-    await prisma.teamMembership.delete({
-      where: { teamId_personId: { teamId: id, personId } },
-    });
-    return this.get(id);
+    return toTeam(row, viewer);
   },
 };

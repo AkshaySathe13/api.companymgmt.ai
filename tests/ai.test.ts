@@ -1,8 +1,17 @@
-import { afterAll, describe, expect, it, vi } from "vitest";
+import {
+  afterAll,
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
 import request from "supertest";
 import Anthropic from "@anthropic-ai/sdk";
 import { createApp } from "../src/app.js";
 import { prisma } from "../src/lib/prisma.js";
+import { as, SESSION_COOKIE, signIn, viewer } from "./helpers/session.js";
 import {
   aiService,
   SYSTEM_PROMPT,
@@ -10,7 +19,11 @@ import {
 } from "../src/modules/ai/ai.service.js";
 
 const app = createApp();
+const api = request.agent(app).set("Cookie", SESSION_COOKIE);
+const ceo = viewer(as.leadershipLead);
 afterAll(() => prisma.$disconnect());
+beforeEach(() => signIn(as.teamMember));
+afterEach(() => vi.restoreAllMocks());
 
 function fakeClient(result: unknown): {
   client: AiClient;
@@ -34,13 +47,13 @@ const message = (overrides: Record<string, unknown>) => ({
 
 describe("AI endpoints without a configured key", () => {
   it("reports status and keeps the rest of the API usable", async () => {
-    const status = await request(app).get("/api/v1/ai/status");
+    const status = await api.get("/api/v1/ai/status");
     expect(status.status).toBe(200);
     expect(status.body.data).toEqual({
       configured: false,
       model: "claude-opus-5-5",
     });
-    const ask = await request(app)
+    const ask = await api
       .post("/api/v1/ai/ask")
       .send({ question: "Who leads Sales?" });
     expect(ask.status).toBe(503);
@@ -49,16 +62,14 @@ describe("AI endpoints without a configured key", () => {
 
   it("validates questions and conversation history", async () => {
     expect(
-      (await request(app).post("/api/v1/ai/ask").send({ question: "" })).status,
+      (await api.post("/api/v1/ai/ask").send({ question: "" })).status,
     ).toBe(400);
     expect(
       (
-        await request(app)
-          .post("/api/v1/ai/ask")
-          .send({
-            question: "And who else?",
-            history: [{ role: "assistant", content: "Hi" }],
-          })
+        await api.post("/api/v1/ai/ask").send({
+          question: "And who else?",
+          history: [{ role: "assistant", content: "Hi" }],
+        })
       ).status,
     ).toBe(400);
   });
@@ -70,6 +81,7 @@ describe("aiService.ask", () => {
       message({ content: [{ type: "text", text: "Riya Mehta leads Sales." }] }),
     );
     const result = await aiService.ask(
+      ceo,
       {
         question: "Who leads Sales?",
         history: [
@@ -104,6 +116,7 @@ describe("aiService.ask", () => {
       }),
     );
     const result = await aiService.ask(
+      ceo,
       { question: "Something unsafe", history: [] },
       client,
     );
@@ -118,6 +131,7 @@ describe("aiService.ask", () => {
       }),
     );
     const result = await aiService.ask(
+      ceo,
       { question: "Everything", history: [] },
       client,
     );
@@ -133,7 +147,7 @@ describe("aiService.ask", () => {
     );
     const { client } = fakeClient(rateLimited);
     await expect(
-      aiService.ask({ question: "Who is in Sales?", history: [] }, client),
+      aiService.ask(ceo, { question: "Who is in Sales?", history: [] }, client),
     ).rejects.toMatchObject({ status: 429, code: "AI_RATE_LIMITED" });
   });
 });

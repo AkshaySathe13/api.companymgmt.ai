@@ -52,7 +52,27 @@ The complete OpenAPI 3.1 contract is `docs/openapi.json`.
 
 Creation requires `name`, `email`, and `industry`; `website` is optional and must use HTTP(S). Send an empty website to clear it. PATCH omits fields to preserve them. Use `status: "ARCHIVED"` to archive and `"ACTIVE"` to restore. No hard delete is exposed. Names and email addresses are not assumed unique.
 
-Team writes (create, edit, delete, membership) take the frontend's demo role from the `X-Preview-Role` header: `executive` can change any team, `manager` can change every team except the five seeded core teams (`isCore: true`, refused with 403 `CORE_TEAM_LOCKED`), and `developer` or a missing header is read-only (403 `FORBIDDEN`). Anyone can set this header; it is a demo stand-in, not access control.
+Every `/api/v1` route except `/auth/login` and `/auth/logout` needs a session. `POST /api/v1/auth/login` checks the email and password (scrypt hashes) and sets an HTTP-only, SameSite=Lax `cc_session` cookie valid for 12 hours; only a SHA-256 hash of the token is stored. Wrong passwords and unknown emails get the same 401, and failed sign-ins are limited to 10 per 15 minutes per address. Users created in the app get a temporary password and can only call `/auth/me` and `/auth/password` until they replace it. Suspending a user or resetting their password signs them out everywhere.
+
+Access comes from each user's role in each of their teams (`src/lib/access.ts`). A team's kind decides its two roles, and its lead always holds the manager role:
+
+| Team kind                            | Manager role (the lead)    | Member role      |
+| ------------------------------------ | -------------------------- | ---------------- |
+| LEADERSHIP (C-suite)                 | Leadership Lead            | Executive Member |
+| TECHNICAL (developers, AI engineers) | Team Manager               | Team Member      |
+| BUSINESS (Sales)                     | Sales Manager              | Sales Member     |
+| EXTERNAL (Investors)                 | Investor Relations Manager | Investor         |
+
+- The Leadership Lead creates, edits and deletes teams, and creates, suspends and deletes users anywhere.
+- A team's manager adds and removes members of their own team, creates users in it, and edits or resets passwords for its members, but not for other managers or themselves.
+- Leadership roles see every profile in full. Everyone else sees other teams' people by name, job title and team only: email, location, time zone, work mode and status are null and `restricted` is true, and searches can't match those hidden fields. Investors only see their own team and its people.
+- `/auth/me` returns the sections each role may open; the frontend shows only those.
+- The AI assistant reads through the same services as the person asking, so it can't reveal more than they could see.
+- User, role and team changes are recorded in `AuditEvent` with the actor and before/after values.
+
+`npm run db:seed` replaces all people and teams (never in production) with 11 fictional users, one per row of the role table, who sign in with `SEED_PASSWORD` (default `Pass@123`).
+
+Team rules: a lead must be staff (`LEAD_MUST_BE_STAFF`) and is always a member; the lead can't leave (`LEAD_CANNOT_LEAVE`); everyone keeps at least one team (`LAST_TEAM`, `TEAM_HAS_ONLY_MEMBERS`); a person who leads a team can't be deleted or made external (`PERSON_LEADS_TEAM`). These checks run in serializable transactions, retried on conflict, so concurrent requests can't break them; a conflict that persists returns 409 `RETRY`. Database-level conflicts name the field involved (for example `TEAM_NAME_TAKEN`, `EMAIL_TAKEN`, `ALREADY_MEMBER`, `PERSON_LEADS_TEAM`) rather than a generic record error. Emails are trimmed, lower-cased and unique; time zones must be IANA names.
 
 List responses: `{ data: Company[], meta: { total, page, limit, pages } }`. Single-record responses: `{ data: Company }`. Errors: `{ error: { code, message, requestId, details? } }`. IDs are UUIDs; dates are ISO timestamps. Maximum page size is 100. Missing status returns both active and archived records; the frontend explicitly filters status. Matching is case-insensitive on company name or industry. Pagination orders by creation time and ID; offset pagination suits this starter's scale.
 
@@ -77,7 +97,7 @@ Logs are structured JSON with generated request IDs and redacted authorization/c
 
 ## Deployment boundary
 
-**Production startup currently fails closed** because no identity/access-control model has been chosen. There is no production bypass flag. Implement and test authentication, per-operation authorization, organization scoping, and tenant-isolated queries before replacing the startup guard. Add TLS termination, managed PostgreSQL/backups, secrets, proxy configuration, shared rate limiting, and observability appropriate to the deployment.
+**Production startup currently fails closed.** Sign-in and per-operation role checks now exist with local accounts, but the requirements call for the shared CarrierOS identity service, and organization scoping and tenant-isolated queries are not built yet. There is no production bypass flag; replace the startup guard only once those are implemented and tested. Add TLS termination, managed PostgreSQL/backups, secrets, proxy configuration, shared rate limiting, and observability appropriate to the deployment.
 
 The Dockerfile is a build/runtime starting point using an unprivileged user; it retains the same production guard. Run database migrations in a separate release job with development tooling available. The API never relies on a frontend-only security check.
 

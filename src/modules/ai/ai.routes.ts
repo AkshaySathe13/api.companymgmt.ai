@@ -2,6 +2,7 @@ import { Router } from "express";
 import { rateLimit } from "express-rate-limit";
 import { aiService } from "./ai.service.js";
 import { askInput } from "./ai.schema.js";
+import { viewerOf } from "../auth/session.js";
 
 export const aiRouter = Router();
 
@@ -23,5 +24,7 @@ aiRouter.get("/status", (_req, res) => {
   res.json({ data: aiService.status() });
 });
 aiRouter.post("/ask", askLimit, async (req, res) => {
-  res.json({ data: await aiService.ask(askInput.parse(req.body)) });
+  res.json({
+    data: await aiService.ask(viewerOf(req), askInput.parse(req.body)),
+  });
 });
